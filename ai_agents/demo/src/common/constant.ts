@@ -111,15 +111,19 @@ export const GRAPH_OPTIONS: GraphOptionItem[] = [
   //   value: "va_nova_multimodal_aws",
   // },
   {
-    label: "With VAD and Turn Detection",
+    label: "GPT OSS 20B",
+    value: "gpt_oss_20b",
+  },
+  {
+    label: "With VAD and Turn Detection (currently disabled)",
     value: "with_ten_turn_detection_and_ten_vad",
   },
   {
-    label: "With TEN Turn Detection",
+    label: "With TEN Turn Detection (currently disabled)",
     value: "with_ten_turn_detection",
   },
   {
-    label: "Without TEN Turn Detection and TEN VAD",
+    label: "Without TEN Turn Detection and TEN VAD (currently disabled)",
     value: "without_ten_turn_detection_and_ten_vad",
   },
   {
