@@ -353,7 +353,7 @@ export const getGraphProperties = (
             "llm": {
                 "model": "gpt-4o",
                 "prompt": prompt,
-                "greeting": 'Hi there, this is TEN Agent connected to GPT OSS 20B, ask me anything!',
+                "greeting": combined_greeting,
             },
             "tts": {
                 "azure_synthesis_voice_name": voiceNameMap[language]["azure"][voiceType]
