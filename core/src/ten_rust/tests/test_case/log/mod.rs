@@ -15,10 +15,12 @@ mod tests {
         bindings::ten_rust_free_cstring,
         log::{
             bindings::ten_rust_create_log_config_from_json,
+            decrypt::decrypt_records_bytes,
             reloadable::ten_configure_log_reloadable, ten_log,
             AdvancedLogConfig, AdvancedLogEmitter, AdvancedLogFormatter,
             AdvancedLogHandler, AdvancedLogLevel, AdvancedLogMatcher,
-            ConsoleEmitterConfig, FileEmitterConfig, FormatterType, LogLevel,
+            AesCtrParams, ConsoleEmitterConfig, EncryptionConfig,
+            EncryptionParams, FileEmitterConfig, FormatterType, LogLevel,
             StreamType,
         },
     };
@@ -119,6 +121,7 @@ mod tests {
             log_config.handlers[0].emitter,
             AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                 stream: StreamType::Stdout,
+                encryption: None,
             })
         );
     }
@@ -140,6 +143,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::File(FileEmitterConfig {
                 path: path.to_string(),
+                encryption: None,
             }),
         }]);
 
@@ -239,6 +243,7 @@ mod tests {
                 },
                 emitter: AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                     stream: StreamType::Stdout,
+                    encryption: None,
                 }),
             }]);
 
@@ -308,6 +313,7 @@ mod tests {
                 },
                 emitter: AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                     stream: StreamType::Stdout,
+                    encryption: None,
                 }),
             }]);
 
@@ -340,6 +346,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                 stream: StreamType::Stdout,
+                encryption: None,
             }),
         }]);
 
@@ -371,6 +378,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                 stream: StreamType::Stdout,
+                encryption: None,
             }),
         }]);
 
@@ -414,6 +422,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                 stream: StreamType::Stdout,
+                encryption: None,
             }),
         }]);
 
@@ -445,6 +454,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                 stream: StreamType::Stderr,
+                encryption: None,
             }),
         }]);
 
@@ -480,6 +490,7 @@ mod tests {
                 },
                 emitter: AdvancedLogEmitter::File(FileEmitterConfig {
                     path: test_file.to_string(),
+                    encryption: None,
                 }),
             }]);
 
@@ -542,6 +553,7 @@ mod tests {
                 },
                 emitter: AdvancedLogEmitter::File(FileEmitterConfig {
                     path: test_file.to_string(),
+                    encryption: None,
                 }),
             }]);
 
@@ -576,6 +588,106 @@ mod tests {
 
     #[test]
     #[serial]
+    fn test_file_emitter_encryption_simple() {
+        use tempfile::NamedTempFile;
+
+        // Create temp file for encrypted logs
+        let log_file =
+            NamedTempFile::new().expect("Failed to create temp file");
+        let log_path = log_file.path().to_str().unwrap().to_string();
+
+        // Build encryption config
+        let encryption = EncryptionConfig {
+            enabled: Some(true),
+            algorithm: Some("AES-CTR".to_string()),
+            params: Some(EncryptionParams::AesCtr(AesCtrParams {
+                key: "0123456789ABCDEF".to_string(),
+                nonce: "FEDCBA9876543210".to_string(),
+            })),
+        };
+
+        let config = AdvancedLogConfig::new(vec![AdvancedLogHandler {
+            matchers: vec![AdvancedLogMatcher {
+                level: AdvancedLogLevel::Debug,
+                category: None,
+            }],
+            formatter: AdvancedLogFormatter {
+                formatter_type: FormatterType::Plain,
+                colored: Some(false),
+            },
+            emitter: AdvancedLogEmitter::File(FileEmitterConfig {
+                path: log_path.clone(),
+                encryption: Some(encryption.clone()),
+            }),
+        }]);
+
+        // Initialize logging
+        ten_configure_log_reloadable(&config).unwrap();
+
+        // Emit one message
+        let msg = "Secret message";
+        ten_log(
+            &config,
+            "test_category",
+            1,
+            1,
+            LogLevel::Info,
+            "encrypt_test",
+            "encrypt.rs",
+            1,
+            msg,
+        );
+        ten_log(
+            &config,
+            "test_category",
+            1234,
+            5678,
+            LogLevel::Warn,
+            "encrypt_test",
+            "encrypt.rs",
+            1,
+            "My card number is 1234567890",
+        );
+        ten_log(
+            &config,
+            "test_category",
+            1234,
+            5678,
+            LogLevel::Debug,
+            "encrypt_test",
+            "encrypt.rs",
+            1,
+            "My phone number is 9876543210",
+        );
+
+        // Force flush by reloading with empty config
+        ten_configure_log_reloadable(&AdvancedLogConfig::new(vec![])).unwrap();
+
+        // Read file as bytes once (guard dropped ensures flush)
+        let bytes =
+            std::fs::read(&log_path).expect("Failed to read log file bytes");
+        assert!(!bytes.is_empty(), "Encrypted log file should not be empty");
+
+        // Decrypt all records via helper module
+        let params_json = serde_json::to_string(&AesCtrParams {
+            key: "0123456789ABCDEF".to_string(),
+            nonce: "FEDCBA9876543210".to_string(),
+        })
+        .unwrap();
+        let decrypted_all =
+            decrypt_records_bytes("AES-CTR", &params_json, &bytes)
+                .expect("decrypt_records_bytes should succeed");
+        let decrypted_text = String::from_utf8_lossy(&decrypted_all);
+
+        println!("Decrypted content:\n{decrypted_text}");
+        assert!(
+            decrypted_text.contains(msg),
+            "Decrypted content should contain original message"
+        );
+    }
+
+    #[test]
+    #[serial]
     fn test_category_matchers_matching_messages() {
         use tempfile::NamedTempFile;
 
@@ -604,6 +716,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::File(FileEmitterConfig {
                 path: log_file.path().to_str().unwrap().to_string(),
+                encryption: None,
             }),
         }]);
 
@@ -662,6 +775,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::File(FileEmitterConfig {
                 path: log_file.path().to_str().unwrap().to_string(),
+                encryption: None,
             }),
         }]);
 
@@ -714,6 +828,7 @@ mod tests {
                 },
                 emitter: AdvancedLogEmitter::File(FileEmitterConfig {
                     path: auth_file.path().to_str().unwrap().to_string(),
+                    encryption: None,
                 }),
             },
             // Handler 2: Database logs (all levels) to db_file
@@ -728,6 +843,7 @@ mod tests {
                 },
                 emitter: AdvancedLogEmitter::File(FileEmitterConfig {
                     path: db_file.path().to_str().unwrap().to_string(),
+                    encryption: None,
                 }),
             },
         ]);
@@ -840,6 +956,7 @@ mod tests {
             },
             emitter: AdvancedLogEmitter::Console(ConsoleEmitterConfig {
                 stream: StreamType::Stdout,
+                encryption: None,
             }),
         }]);
 
