@@ -16,12 +16,12 @@ mod tests {
         log::{
             bindings::ten_rust_create_log_config_from_json,
             decrypt::decrypt_records_bytes,
-            reloadable::ten_configure_log_reloadable, ten_log,
-            AdvancedLogConfig, AdvancedLogEmitter, AdvancedLogFormatter,
-            AdvancedLogHandler, AdvancedLogLevel, AdvancedLogMatcher,
-            AesCtrParams, ConsoleEmitterConfig, EncryptionConfig,
-            EncryptionParams, FileEmitterConfig, FormatterType, LogLevel,
-            StreamType,
+            encryption::{AesCtrParams, EncryptionConfig, EncryptionParams},
+            reloadable::ten_configure_log_reloadable,
+            ten_log, AdvancedLogConfig, AdvancedLogEmitter,
+            AdvancedLogFormatter, AdvancedLogHandler, AdvancedLogLevel,
+            AdvancedLogMatcher, ConsoleEmitterConfig, FileEmitterConfig,
+            FormatterType, LogLevel, StreamType,
         },
     };
     use tracing::{debug, info, trace};
